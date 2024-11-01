@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless Java Container GraalVM
+Resources:
+  DeliveryOrder:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    Properties:
+      TableName: DeliveryOrder
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: city
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
+      BillingMode: PAY_PER_REQUEST
+
+      GlobalSecondaryIndexes:
+        - IndexName: 'email-city-index'
+          KeySchema:
+            - AttributeName: 'city'
+              KeyType: 'HASH'
+          Projection:
+            ProjectionType: 'KEYS_ONLY'
+
+  ServerlessWebNativeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      MemorySize: 512
+      FunctionName: native
+      Timeout: 15
+      CodeUri: ./target/native-0.0.1-native-zip.zip
+      Handler: NOP
+      Runtime: provided.al2023
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DeliveryOrder
+      Events:
+        HttpApiEvent:
+          Type: HttpApi
+          Properties:
+            TimeoutInMillis: 20000
+            PayloadFormatVersion: '1.0'
+        
+Globals:
+  Api:
+    EndpointConfiguration: REGIONAL
+  Function:
+    Environment:
+      Variables:
+        ORDERS_TABLE: !Ref DeliveryOrder
+Outputs:
+  ServerlessWebNativeApi:
+    Description: URL for application
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/orders'
+    Export:
+      Name: ServerlessWebNativeApi
+      
